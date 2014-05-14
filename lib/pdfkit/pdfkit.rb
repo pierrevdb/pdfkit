@@ -27,9 +27,10 @@ class PDFKit
     @options = PDFKit.configuration.default_options.merge(options)
     @options.delete(:quiet) if PDFKit.configuration.verbose?
     @options.merge! find_options_in_meta(url_file_or_html) unless source.url?
-    @options = normalize_options(@options)
 
     raise NoExecutableError.new unless File.exists?(PDFKit.configuration.wkhtmltopdf)
+    @wkhtmltopdf_version = `#{executable} --version`.split[1]
+    @options = normalize_options(@options)
   end
 
   def command(path = nil)
@@ -43,7 +44,6 @@ class PDFKit
     end
 
     args << (path || '-') # Write to file or stdout
-
     args.shelljoin
   end
 
@@ -61,6 +61,8 @@ class PDFKit
     append_stylesheets
 
     invoke = command(path)
+
+    puts "\n\n#{invoke}\n\n"
 
     result = IO.popen(invoke, "wb+") do |pdf|
       pdf.puts(@source.to_s) if @source.html?
@@ -84,6 +86,8 @@ class PDFKit
     # Pulled from:
     # https://github.com/wkhtmltopdf/wkhtmltopdf/blob/ebf9b6cfc4c58a31349fb94c568b254fac37b3d3/README_WKHTMLTOIMAGE#L27
     REPEATABLE_OPTIONS = %w[--allow --cookie --custom-header --post --post-file --run-script]
+    TOC_OPTIONS = %w[--toc-header-text --xsl-style-sheet]
+    PAGE_OBJECTS = %w[--cover --toc]
 
     def find_options_in_meta(content)
       # Read file if content is a File
@@ -142,6 +146,11 @@ class PDFKit
           normalized_options[normalized_key] = normalize_value(value)
         end
       end
+
+      has_toc = normalized_options.has_key?("--toc")
+      PAGE_OBJECTS.each {|page_obj| normalized_options[page_obj[2..-1]] = normalized_options.delete(page_obj)} if @wkhtmltopdf_version.start_with?('0.12')
+      #FIXME HACK! move the toc options into place right after toc - not sure this ordering will always work ...
+      TOC_OPTIONS.each {|toc_opt| normalized_options[toc_opt] = normalized_options.delete(toc_opt) if normalized_options.has_key?(toc_opt)} if has_toc
 
       normalized_options
     end
