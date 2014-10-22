@@ -29,6 +29,7 @@ class PDFKit
     @options.merge! find_options_in_meta(url_file_or_html) unless source.url?
 
     raise NoExecutableError.new unless File.exists?(PDFKit.configuration.wkhtmltopdf)
+    #TODO - not all wkhtmltopdf versions output the version in the same format - deal with multiline output
     @wkhtmltopdf_version = `#{executable} --version`.split[1]
     @options = normalize_options(@options)
   end
@@ -148,7 +149,9 @@ class PDFKit
       end
 
       has_toc = normalized_options.has_key?("--toc")
-      PAGE_OBJECTS.each {|page_obj| normalized_options[page_obj[2..-1]] = normalized_options.delete(page_obj)} if @wkhtmltopdf_version.start_with?('0.12')
+      PAGE_OBJECTS.each do |page_obj|
+        normalized_options[page_obj[2..-1]] = normalized_options.delete(page_obj) if normalized_options.has_key?(page_obj)
+      end if @wkhtmltopdf_version.start_with?('0.12')
       #FIXME HACK! move the toc options into place right after toc - not sure this ordering will always work ...
       TOC_OPTIONS.each {|toc_opt| normalized_options[toc_opt] = normalized_options.delete(toc_opt) if normalized_options.has_key?(toc_opt)} if has_toc
 
